@@ -63,8 +63,7 @@ class RecordingManager:
             
     def is_recording(self) -> bool:
         """Check if currently recording."""
-        return (self.recording_thread and 
-                self.recording_thread.is_alive())
+        return bool(self.recording_thread and self.recording_thread.is_alive())
                 
     def stop_recording(self) -> None:
         """Stop current recording."""
@@ -211,6 +210,50 @@ class SimpleRecorder:
     def stop_recording(self):
         """Stop current recording."""
         self.recorder.stop_recording()
+        
+    def start_recording(self):
+        """Start recording manually (for press-and-hold functionality)."""
+        # For manual recording, we need to start recording in a separate thread
+        # since the original start_recording() method blocks until completion
+        if not self.recorder.is_recording:
+            self.recorder.is_recording = True
+            self.recorder.frames = []
+            
+            # Start recording in a separate thread
+            self.recording_thread = threading.Thread(target=self._manual_record)
+            self.recording_thread.start()
+        
+    def _manual_record(self):
+        """Manual recording method that runs in a separate thread."""
+        stream = self.recorder.audio.open(
+            format=self.recorder.config.FORMAT,
+            channels=self.recorder.config.CHANNELS,
+            rate=self.recorder.config.RATE,
+            input=True,
+            frames_per_buffer=self.recorder.config.CHUNK
+        )
+        
+        print("Manual recording started...")
+        
+        while self.recorder.is_recording:
+            try:
+                data = stream.read(self.recorder.config.CHUNK)
+                self.recorder.frames.append(data)
+            except Exception as e:
+                print(f"Error during manual recording: {e}")
+                break
+        
+        stream.stop_stream()
+        stream.close()
+        print("Manual recording stopped.")
+        
+    def is_recording(self) -> bool:
+        """Check if currently recording."""
+        return self.recorder.is_recording
+        
+    def save_recording(self, filename: str) -> bool:
+        """Save the current recording to file."""
+        return self.recorder.save_recording(filename)
         
     def cleanup(self):
         """Clean up resources."""

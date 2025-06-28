@@ -49,8 +49,32 @@ def test_feature_1_recording():
         else:
             print("✗ 3-second recording failed!")
         
+        # Test press-and-hold recording
+        print(f"\n--- Testing Press-and-Hold Recording ---")
+        test_filename_hold = "data/recordings/feature1_test_hold.wav"
+        print(f"Press-and-hold recording to: {test_filename_hold}")
+        
+        # Start recording
+        recorder.start_recording()
+        print("Recording started (press-and-hold)...")
+        
+        # Record for 2 seconds
+        time.sleep(2)
+        
+        # Stop recording
+        recorder.stop_recording()
+        print("Recording stopped.")
+        
+        # Save recording
+        success_hold = recorder.save_recording(test_filename_hold)
+        
+        if success_hold:
+            print("✓ Press-and-hold recording completed successfully!")
+        else:
+            print("✗ Press-and-hold recording failed!")
+        
         # Test playback
-        if success_5 or success_3:
+        if success_5 or success_3 or success_hold:
             print("\n--- Testing Playback ---")
             player = AudioPlayer()
             
@@ -61,6 +85,10 @@ def test_feature_1_recording():
             if success_3:
                 print("Playing back the 3-second recording...")
                 player.play_file(test_filename_3)
+                
+            if success_hold:
+                print("Playing back the press-and-hold recording...")
+                player.play_file(test_filename_hold)
                 
             player.cleanup()
             print("✓ Playback completed!")
@@ -77,7 +105,7 @@ def test_feature_1_recording():
         
         manager.cleanup()
         
-        return success_5 or success_3
+        return success_5 or success_3 or success_hold
         
     except Exception as e:
         print(f"✗ Feature 1 test failed: {e}")

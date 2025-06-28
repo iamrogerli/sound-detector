@@ -4,7 +4,10 @@ A Python application for recording audio, training sound recognition models, and
 
 ## Features
 
-1. **Audio Recording**: Record 5-second audio clips and save them to files
+1. **Audio Recording**: Record audio clips with multiple options:
+   - 5-second automatic recordings
+   - 3-second automatic recordings  
+   - Press-and-hold manual recordings (start when pressed, stop when released)
 2. **Model Training**: Train machine learning models to recognize specific sounds
 3. **Real-time Detection**: Continuously monitor microphone input for trained sounds
 
@@ -82,7 +85,8 @@ The application has three main tabs:
 
 #### 1. Recording Tab
 - Enter a sound type (e.g., "doorbell", "alarm", "voice")
-- Click "Record 5 Seconds" to capture audio
+- **Automatic Recording**: Click "Record 5 Seconds" or "Record 3 Seconds" to capture audio
+- **Manual Recording**: Press and hold the "🎤 Press to Start Recording" button to record for any duration
 - View and manage your recordings
 - Play back recordings to verify quality
 

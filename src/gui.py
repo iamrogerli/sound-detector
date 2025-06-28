@@ -9,6 +9,7 @@ import threading
 import os
 from typing import Optional
 from .audio_recorder import RecordingManager, SimpleRecorder
+import time
 
 
 class SoundDetectionGUI:
@@ -23,6 +24,7 @@ class SoundDetectionGUI:
         self.recording_manager = RecordingManager()
         self.simple_recorder = SimpleRecorder()
         self.current_recording_thread = None
+        self.detector = None  # Will be initialized when needed
         
         # Create GUI elements
         self.setup_gui()
@@ -78,6 +80,20 @@ class SoundDetectionGUI:
                                      command=self.stop_recording, state='disabled')
         self.stop_button.pack(side='left', padx=5)
         
+        # Press and hold recording button
+        hold_frame = ttk.Frame(self.recording_frame)
+        hold_frame.pack(pady=10)
+        
+        ttk.Label(hold_frame, text="Press and Hold to Record:").pack(pady=5)
+        
+        self.hold_record_button = ttk.Button(hold_frame, text="🎤 Press to Start Recording", 
+                                           style='Hold.TButton')
+        self.hold_record_button.pack(pady=5)
+        
+        # Bind mouse events for press and hold
+        self.hold_record_button.bind('<Button-1>', self.start_hold_recording)
+        self.hold_record_button.bind('<ButtonRelease-1>', self.stop_hold_recording)
+        
         # Status
         self.status_var = tk.StringVar(value="Ready to record")
         status_label = ttk.Label(self.recording_frame, textvariable=self.status_var)
@@ -125,9 +141,12 @@ class SoundDetectionGUI:
         control_frame = ttk.Frame(self.training_frame)
         control_frame.pack(pady=20)
         
-        ttk.Button(control_frame, text="Train Model", command=self.train_model).pack(pady=5)
+        self.train_button = ttk.Button(control_frame, text="Train Model", command=self.train_model)
+        self.train_button.pack(pady=5)
+        
         ttk.Button(control_frame, text="Load Model", command=self.load_model).pack(pady=5)
         ttk.Button(control_frame, text="Test Model", command=self.test_model).pack(pady=5)
+        ttk.Button(control_frame, text="Check Recordings", command=self.check_recordings).pack(pady=5)
         
         # Training progress
         self.progress_var = tk.DoubleVar()
@@ -147,6 +166,42 @@ class SoundDetectionGUI:
         
         self.log_text.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
+        
+        # Check recordings on startup
+        self.check_recordings()
+        
+    def check_recordings(self):
+        """Check if there are enough recordings to train a model."""
+        try:
+            from src.audio_utils import list_audio_files
+            
+            recordings = list_audio_files("data/recordings")
+            
+            if len(recordings) < 2:
+                self.train_button.config(state='disabled')
+                self.training_status_var.set("Need at least 2 recordings to train")
+                self.log_text.insert('end', f"Found {len(recordings)} recordings. Need at least 2 to train a model.\n")
+            else:
+                # Count different sound types
+                sound_types = set()
+                for recording in recordings:
+                    filename = os.path.basename(recording)
+                    if '_' in filename:
+                        sound_type = filename.split('_')[0]
+                        sound_types.add(sound_type)
+                
+                if len(sound_types) < 2:
+                    self.train_button.config(state='disabled')
+                    self.training_status_var.set(f"Need at least 2 different sound types (found: {list(sound_types)})")
+                    self.log_text.insert('end', f"Found {len(sound_types)} sound types: {list(sound_types)}. Need at least 2 different types.\n")
+                else:
+                    self.train_button.config(state='normal')
+                    self.training_status_var.set(f"Ready to train: {len(recordings)} recordings, {len(sound_types)} types")
+                    self.log_text.insert('end', f"✓ Ready to train! Found {len(recordings)} recordings with {len(sound_types)} sound types: {list(sound_types)}\n")
+                    
+        except Exception as e:
+            self.log_text.insert('end', f"Error checking recordings: {e}\n")
+            self.train_button.config(state='disabled')
         
     def setup_detection_tab(self):
         """Setup the detection tab."""
@@ -170,6 +225,12 @@ class SoundDetectionGUI:
         self.stop_detection_button = ttk.Button(control_frame, text="Stop Detection", 
                                                command=self.stop_detection, state='disabled')
         self.stop_detection_button.pack(side='left', padx=5)
+        
+        ttk.Button(control_frame, text="Test Detection", 
+                  command=self.test_detection).pack(side='left', padx=5)
+        
+        ttk.Button(control_frame, text="Clear Results", 
+                  command=self.clear_detection_results).pack(side='left', padx=5)
         
         # Detection results
         results_frame = ttk.Frame(self.detection_frame)
@@ -236,6 +297,10 @@ class SoundDetectionGUI:
         self.stop_button.config(state='disabled')
         self.refresh_recordings()
         
+        # Check if we can now train a model
+        if success:
+            self.check_recordings()
+        
     def _recording_error(self, error: str):
         """Handle recording error."""
         self.status_var.set(f"Recording error: {error}")
@@ -250,6 +315,49 @@ class SoundDetectionGUI:
         self.record_5_button.config(state='normal')
         self.record_3_button.config(state='normal')
         self.stop_button.config(state='disabled')
+        
+    def start_hold_recording(self, event=None):
+        """Start recording when hold button is pressed."""
+        sound_type = self.sound_type_var.get().strip()
+        if not sound_type:
+            messagebox.showwarning("Warning", "Please enter a sound type")
+            return
+            
+        # Disable other recording buttons
+        self.record_5_button.config(state='disabled')
+        self.record_3_button.config(state='disabled')
+        self.hold_record_button.config(text="🎤 Recording... (Release to Stop)")
+        
+        # Start recording
+        self.status_var.set("Recording... (press and hold)")
+        self.simple_recorder.start_recording()
+        
+    def stop_hold_recording(self, event=None):
+        """Stop recording when hold button is released."""
+        if not self.simple_recorder.is_recording:
+            return
+            
+        # Stop recording
+        self.simple_recorder.stop_recording()
+        
+        # Get sound type and save recording
+        sound_type = self.sound_type_var.get().strip()
+        if sound_type:
+            # Save the recording
+            filename = f"{sound_type}_{self._get_timestamp()}.wav"
+            filepath = os.path.join("data/recordings", filename)
+            
+            if self.simple_recorder.save_recording(filepath):
+                self.status_var.set(f"Recording saved: {filename}")
+                self.refresh_recordings()
+                self.check_recordings()
+            else:
+                self.status_var.set("Failed to save recording")
+        
+        # Reset button states
+        self.record_5_button.config(state='normal')
+        self.record_3_button.config(state='normal')
+        self.hold_record_button.config(text="🎤 Press to Start Recording")
         
     def play_selected(self):
         """Play selected recording."""
@@ -299,8 +407,116 @@ class SoundDetectionGUI:
         """Train the sound recognition model."""
         self.log_text.insert('end', "Training model...\n")
         self.training_status_var.set("Training in progress...")
-        # TODO: Implement model training
-        self.log_text.insert('end', "Model training not implemented yet.\n")
+        
+        # Disable training button during training
+        self.train_button.config(state='disabled')
+        
+        # Start training in a separate thread
+        training_thread = threading.Thread(target=self._train_model_thread)
+        training_thread.start()
+        
+    def _train_model_thread(self):
+        """Train model in a separate thread."""
+        try:
+            from src.model_trainer import SimpleTrainer
+            
+            # Update progress
+            self.root.after(0, self._update_progress, 10, "Initializing trainer...")
+            
+            # Create trainer
+            trainer = SimpleTrainer()
+            
+            # Update progress
+            self.root.after(0, self._update_progress, 30, "Preparing training data...")
+            
+            # Train the model
+            model_name = f"sound_model_{self._get_timestamp()}.pkl"
+            
+            # Update progress
+            self.root.after(0, self._update_progress, 50, "Training model...")
+            
+            success = trainer.train_and_save(model_name)
+            
+            # Update progress
+            self.root.after(0, self._update_progress, 80, "Saving model...")
+            
+            # Update GUI in main thread
+            if success:
+                self.root.after(0, self._training_success, model_name)
+            else:
+                self.root.after(0, self._training_failed)
+                
+        except Exception as e:
+            self.root.after(0, self._training_error, str(e))
+            
+    def _update_progress(self, value: int, message: str):
+        """Update progress bar and log message."""
+        self.progress_var.set(value)
+        self.log_text.insert('end', f"{message}\n")
+        self.log_text.see('end')  # Auto-scroll to bottom
+        
+    def _training_success(self, model_name: str):
+        """Handle successful training."""
+        self.log_text.insert('end', f"✓ Model training completed successfully!\n")
+        self.log_text.insert('end', f"Model saved as: {model_name}\n")
+        self.training_status_var.set(f"Model trained: {model_name}")
+        self.train_button.config(state='normal')
+        
+        # Update progress bar
+        self.progress_var.set(100)
+        
+        # Test the model
+        self.log_text.insert('end', "Testing model on sample recordings...\n")
+        self._test_trained_model(model_name)
+        
+    def _training_failed(self):
+        """Handle training failure."""
+        self.log_text.insert('end', "✗ Model training failed!\n")
+        self.log_text.insert('end', "Please ensure you have recorded sounds for different types.\n")
+        self.training_status_var.set("Training failed")
+        self.train_button.config(state='normal')
+        self.progress_var.set(0)
+        
+    def _training_error(self, error: str):
+        """Handle training error."""
+        self.log_text.insert('end', f"✗ Training error: {error}\n")
+        self.training_status_var.set("Training error")
+        self.train_button.config(state='normal')
+        self.progress_var.set(0)
+        
+    def _test_trained_model(self, model_name: str):
+        """Test the trained model on sample recordings."""
+        try:
+            from src.model_trainer import SimpleTrainer
+            from src.audio_utils import list_audio_files
+            
+            trainer = SimpleTrainer()
+            model_path = f"data/models/{model_name}"
+            
+            # Get sample recordings
+            recordings = list_audio_files("data/recordings")
+            
+            if recordings:
+                # Test on first few recordings
+                test_count = min(3, len(recordings))
+                self.log_text.insert('end', f"Testing on {test_count} recordings:\n")
+                
+                for i, recording in enumerate(recordings[:test_count]):
+                    try:
+                        success = trainer.load_and_test(model_path, recording)
+                        if success:
+                            self.log_text.insert('end', f"  ✓ Test {i+1}: {os.path.basename(recording)}\n")
+                        else:
+                            self.log_text.insert('end', f"  ✗ Test {i+1}: {os.path.basename(recording)}\n")
+                    except Exception as e:
+                        self.log_text.insert('end', f"  ✗ Test {i+1} error: {e}\n")
+                        
+                self.log_text.insert('end', "Model testing completed!\n")
+            else:
+                self.log_text.insert('end', "No recordings found for testing.\n")
+                
+        except Exception as e:
+            self.log_text.insert('end', f"Error testing model: {e}\n")
         
     def load_model(self):
         """Load a trained model."""
@@ -315,23 +531,170 @@ class SoundDetectionGUI:
     def test_model(self):
         """Test the trained model."""
         self.log_text.insert('end', "Testing model...\n")
-        # TODO: Implement model testing
-        self.log_text.insert('end', "Model testing not implemented yet.\n")
+        
+        # Check if we have a model loaded or available
+        model_files = [f for f in os.listdir("data/models") if f.endswith('.pkl')]
+        
+        if not model_files:
+            self.log_text.insert('end', "No trained models found. Please train a model first.\n")
+            return
+            
+        # Use the most recent model
+        latest_model = sorted(model_files)[-1]
+        model_path = os.path.join("data/models", latest_model)
+        
+        self.log_text.insert('end', f"Testing model: {latest_model}\n")
+        
+        try:
+            from src.model_trainer import SimpleTrainer
+            from src.audio_utils import list_audio_files
+            
+            trainer = SimpleTrainer()
+            
+            # Get recordings to test on
+            recordings = list_audio_files("data/recordings")
+            
+            if not recordings:
+                self.log_text.insert('end', "No recordings found for testing.\n")
+                return
+                
+            # Test on a few recordings
+            test_count = min(5, len(recordings))
+            self.log_text.insert('end', f"Testing on {test_count} recordings:\n")
+            
+            success_count = 0
+            for i, recording in enumerate(recordings[:test_count]):
+                try:
+                    success = trainer.load_and_test(model_path, recording)
+                    if success:
+                        self.log_text.insert('end', f"  ✓ Test {i+1}: {os.path.basename(recording)}\n")
+                        success_count += 1
+                    else:
+                        self.log_text.insert('end', f"  ✗ Test {i+1}: {os.path.basename(recording)}\n")
+                except Exception as e:
+                    self.log_text.insert('end', f"  ✗ Test {i+1} error: {e}\n")
+                    
+            accuracy = (success_count / test_count) * 100
+            self.log_text.insert('end', f"Test completed! Accuracy: {accuracy:.1f}% ({success_count}/{test_count})\n")
+            
+        except Exception as e:
+            self.log_text.insert('end', f"Error testing model: {e}\n")
         
     def start_detection(self):
         """Start real-time sound detection."""
-        self.detection_status_var.set("Detection running...")
-        self.start_detection_button.config(state='disabled')
-        self.stop_detection_button.config(state='normal')
-        self.results_text.insert('end', "Detection started...\n")
-        # TODO: Implement real-time detection
+        try:
+            from src.sound_detector import RealTimeDetector
+            
+            # Check if we have a trained model
+            model_files = [f for f in os.listdir("data/models") if f.endswith('.pkl')]
+            
+            if not model_files:
+                messagebox.showerror("Error", "No trained models found. Please train a model first.")
+                return
+                
+            # Use the most recent model
+            latest_model = sorted(model_files)[-1]
+            model_path = os.path.join("data/models", latest_model)
+            
+            # Initialize detector
+            self.detector = RealTimeDetector(model_path)
+            
+            # Set up detection callback
+            def on_detection(detection_info):
+                timestamp = time.strftime("%H:%M:%S", time.localtime(detection_info['timestamp']))
+                result_text = f"[{timestamp}] DETECTED: {detection_info['sound_type']} (confidence: {detection_info['confidence']:.3f})\n"
+                self.results_text.insert('end', result_text)
+                self.results_text.see('end')  # Auto-scroll
+                
+            self.detector.on_detection = on_detection
+            
+            # Start detection
+            success = self.detector.start_detection(
+                target_sounds=None,  # Detect all sounds
+                confidence_threshold=0.7,
+                detection_interval=2.0
+            )
+            
+            if success:
+                self.detection_status_var.set(f"Detection running (model: {latest_model})")
+                self.start_detection_button.config(state='disabled')
+                self.stop_detection_button.config(state='normal')
+                self.results_text.insert('end', f"Detection started with model: {latest_model}\n")
+                self.results_text.insert('end', "Listening for sounds...\n")
+            else:
+                messagebox.showerror("Error", "Failed to start detection. Check if model is valid.")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to start detection: {e}")
+            self.detection_status_var.set("Detection error")
         
     def stop_detection(self):
         """Stop real-time sound detection."""
+        if self.detector:
+            self.detector.stop_detection()
+            self.detector.cleanup()
+            self.detector = None
+            
         self.detection_status_var.set("Detection stopped")
         self.start_detection_button.config(state='normal')
         self.stop_detection_button.config(state='disabled')
         self.results_text.insert('end', "Detection stopped.\n")
+        
+    def test_detection(self):
+        """Test detection on existing recordings without starting real-time monitoring."""
+        try:
+            from src.sound_detector import SimpleDetector
+            from src.audio_utils import list_audio_files
+            
+            # Check if we have a trained model
+            model_files = [f for f in os.listdir("data/models") if f.endswith('.pkl')]
+            
+            if not model_files:
+                messagebox.showerror("Error", "No trained models found. Please train a model first.")
+                return
+                
+            # Use the most recent model
+            latest_model = sorted(model_files)[-1]
+            model_path = os.path.join("data/models", latest_model)
+            
+            # Initialize detector
+            detector = SimpleDetector(model_path)
+            
+            # Get recordings to test on
+            recordings = list_audio_files("data/recordings")
+            
+            if not recordings:
+                self.results_text.insert('end', "No recordings found for testing.\n")
+                return
+                
+            # Test on a few recordings
+            test_count = min(5, len(recordings))
+            self.results_text.insert('end', f"Testing detection on {test_count} recordings:\n")
+            
+            success_count = 0
+            for i, recording in enumerate(recordings[:test_count]):
+                try:
+                    success = detector.test_detection(recording)
+                    if success:
+                        self.results_text.insert('end', f"  ✓ Test {i+1}: {os.path.basename(recording)}\n")
+                        success_count += 1
+                    else:
+                        self.results_text.insert('end', f"  ✗ Test {i+1}: {os.path.basename(recording)}\n")
+                except Exception as e:
+                    self.results_text.insert('end', f"  ✗ Test {i+1} error: {e}\n")
+                    
+            accuracy = (success_count / test_count) * 100
+            self.results_text.insert('end', f"Detection test completed! Accuracy: {accuracy:.1f}% ({success_count}/{test_count})\n")
+            
+            # Clean up
+            detector.cleanup()
+            
+        except Exception as e:
+            self.results_text.insert('end', f"Error testing detection: {e}\n")
+        
+    def clear_detection_results(self):
+        """Clear detection results."""
+        self.results_text.delete('1.0', 'end')
         
     def _get_timestamp(self) -> str:
         """Get current timestamp string."""
@@ -342,6 +705,11 @@ class SoundDetectionGUI:
         """Clean up resources."""
         self.recording_manager.cleanup()
         self.simple_recorder.cleanup()
+        
+        # Clean up detector if running
+        if self.detector:
+            self.detector.stop_detection()
+            self.detector.cleanup()
 
 
 def main():
