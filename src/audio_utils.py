@@ -21,6 +21,7 @@ class AudioConfig:
     CHANNELS = 1
     RATE = 44100
     RECORD_SECONDS = 5
+    RECORD_SECONDS_SHORT = 3  # Added 3-second option
 
 
 class AudioRecorder:
@@ -89,6 +90,40 @@ class AudioRecorder:
     def record_and_save(self, filename: str) -> bool:
         """Record for specified duration and save to file."""
         self.start_recording()
+        return self.save_recording(filename)
+        
+    def record_3_seconds(self, filename: str) -> bool:
+        """Record for 3 seconds and save to file."""
+        if self.is_recording:
+            return False
+            
+        self.is_recording = True
+        self.frames = []
+        
+        stream = self.audio.open(
+            format=self.config.FORMAT,
+            channels=self.config.CHANNELS,
+            rate=self.config.RATE,
+            input=True,
+            frames_per_buffer=self.config.CHUNK
+        )
+        
+        print("Recording started (3 seconds)...")
+        start_time = time.time()
+        
+        while self.is_recording and (time.time() - start_time) < self.config.RECORD_SECONDS_SHORT:
+            try:
+                data = stream.read(self.config.CHUNK)
+                self.frames.append(data)
+            except Exception as e:
+                print(f"Error during recording: {e}")
+                break
+        
+        stream.stop_stream()
+        stream.close()
+        self.is_recording = False
+        print("Recording stopped.")
+        
         return self.save_recording(filename)
         
     def cleanup(self):

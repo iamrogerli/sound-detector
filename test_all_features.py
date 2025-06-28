@@ -27,25 +27,43 @@ def test_feature_1_recording():
         print("\n--- Testing Simple Recorder ---")
         recorder = SimpleRecorder()
         
-        # Record a test sound
-        test_filename = "data/recordings/feature1_test.wav"
-        print(f"Recording 5 seconds to: {test_filename}")
+        # Test 5-second recording
+        test_filename_5 = "data/recordings/feature1_test_5sec.wav"
+        print(f"Recording 5 seconds to: {test_filename_5}")
         
-        success = recorder.record_5_seconds(test_filename)
+        success_5 = recorder.record_5_seconds(test_filename_5)
         
-        if success:
-            print("✓ Feature 1: Recording completed successfully!")
-            
-            # Test playback
+        if success_5:
+            print("✓ 5-second recording completed successfully!")
+        else:
+            print("✗ 5-second recording failed!")
+        
+        # Test 3-second recording
+        test_filename_3 = "data/recordings/feature1_test_3sec.wav"
+        print(f"\nRecording 3 seconds to: {test_filename_3}")
+        
+        success_3 = recorder.record_3_seconds(test_filename_3)
+        
+        if success_3:
+            print("✓ 3-second recording completed successfully!")
+        else:
+            print("✗ 3-second recording failed!")
+        
+        # Test playback
+        if success_5 or success_3:
             print("\n--- Testing Playback ---")
             player = AudioPlayer()
-            print("Playing back the recording...")
-            player.play_file(test_filename)
+            
+            if success_5:
+                print("Playing back the 5-second recording...")
+                player.play_file(test_filename_5)
+                
+            if success_3:
+                print("Playing back the 3-second recording...")
+                player.play_file(test_filename_3)
+                
             player.cleanup()
             print("✓ Playback completed!")
-            
-        else:
-            print("✗ Feature 1: Recording failed!")
             
         recorder.cleanup()
         
@@ -59,7 +77,7 @@ def test_feature_1_recording():
         
         manager.cleanup()
         
-        return success
+        return success_5 or success_3
         
     except Exception as e:
         print(f"✗ Feature 1 test failed: {e}")

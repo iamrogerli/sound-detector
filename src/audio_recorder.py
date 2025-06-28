@@ -181,6 +181,37 @@ class SimpleRecorder:
             
         return bool(success)
         
+    def record_3_seconds(self, filename: str) -> bool:
+        """
+        Record exactly 3 seconds of audio and save to file.
+        
+        Args:
+            filename: Path where to save the audio file
+            
+        Returns:
+            True if recording was successful
+        """
+        print("Starting 3-second recording...")
+        print("Recording will start in 2 seconds...")
+        
+        for i in range(2, 0, -1):
+            print(f"{i}...")
+            time.sleep(1)
+            
+        print("Recording now!")
+        success = self.recorder.record_3_seconds(filename)
+        
+        if success:
+            print(f"Recording completed and saved to: {filename}")
+        else:
+            print("Recording failed!")
+            
+        return bool(success)
+        
+    def stop_recording(self):
+        """Stop current recording."""
+        self.recorder.stop_recording()
+        
     def cleanup(self):
         """Clean up resources."""
         self.recorder.cleanup()

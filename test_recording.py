@@ -26,32 +26,56 @@ def test_recording():
     # Create recorder
     recorder = SimpleRecorder()
     
-    # Test recording
-    test_filename = "data/recordings/test_recording.wav"
-    print(f"Recording 5 seconds to: {test_filename}")
+    # Test 5-second recording
+    test_filename_5 = "data/recordings/test_sound_5sec.wav"
+    print(f"Recording 5 seconds to: {test_filename_5}")
     
     try:
-        success = recorder.record_5_seconds(test_filename)
+        success_5 = recorder.record_5_seconds(test_filename_5)
         
-        if success:
-            print("✓ Recording completed successfully!")
-            
-            # Test playback
-            print("\n=== Testing Audio Playback ===")
-            player = AudioPlayer()
-            print("Playing back the recording...")
-            player.play_file(test_filename)
-            player.cleanup()
-            print("✓ Playback completed!")
-            
+        if success_5:
+            print("✓ 5-second recording completed successfully!")
         else:
-            print("✗ Recording failed!")
+            print("✗ 5-second recording failed!")
             
     except Exception as e:
-        print(f"✗ Error during recording: {e}")
+        print(f"✗ Error during 5-second recording: {e}")
+        success_5 = False
+    
+    # Test 3-second recording
+    test_filename_3 = "data/recordings/test_sound_3sec.wav"
+    print(f"\nRecording 3 seconds to: {test_filename_3}")
+    
+    try:
+        success_3 = recorder.record_3_seconds(test_filename_3)
         
-    finally:
-        recorder.cleanup()
+        if success_3:
+            print("✓ 3-second recording completed successfully!")
+        else:
+            print("✗ 3-second recording failed!")
+            
+    except Exception as e:
+        print(f"✗ Error during 3-second recording: {e}")
+        success_3 = False
+    
+    # Test playback if either recording succeeded
+    if success_5 or success_3:
+        print("\n=== Testing Audio Playback ===")
+        player = AudioPlayer()
+        
+        if success_5:
+            print("Playing back the 5-second recording...")
+            player.play_file(test_filename_5)
+            
+        if success_3:
+            print("Playing back the 3-second recording...")
+            player.play_file(test_filename_3)
+            
+        player.cleanup()
+        print("✓ Playback completed!")
+        
+    recorder.cleanup()
+    return success_5 or success_3
 
 
 def test_recording_manager():

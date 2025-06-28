@@ -66,9 +66,13 @@ class SoundDetectionGUI:
         control_frame = ttk.Frame(self.recording_frame)
         control_frame.pack(pady=20)
         
-        self.record_button = ttk.Button(control_frame, text="Record 5 Seconds", 
-                                       command=self.start_recording)
-        self.record_button.pack(side='left', padx=5)
+        self.record_5_button = ttk.Button(control_frame, text="Record 5 Seconds", 
+                                         command=self.start_recording_5)
+        self.record_5_button.pack(side='left', padx=5)
+        
+        self.record_3_button = ttk.Button(control_frame, text="Record 3 Seconds", 
+                                         command=self.start_recording_3)
+        self.record_3_button.pack(side='left', padx=5)
         
         self.stop_button = ttk.Button(control_frame, text="Stop Recording", 
                                      command=self.stop_recording, state='disabled')
@@ -180,30 +184,44 @@ class SoundDetectionGUI:
         self.results_text.pack(side='left', fill='both', expand=True)
         results_scrollbar.pack(side='right', fill='y')
         
-    def start_recording(self):
-        """Start recording audio."""
+    def start_recording_5(self):
+        """Start 5-second recording."""
+        self._start_recording(5)
+        
+    def start_recording_3(self):
+        """Start 3-second recording."""
+        self._start_recording(3)
+        
+    def _start_recording(self, duration: int):
+        """Start recording with specified duration."""
         sound_type = self.sound_type_var.get().strip()
         if not sound_type:
             messagebox.showerror("Error", "Please enter a sound type")
             return
             
-        self.status_var.set("Recording...")
-        self.record_button.config(state='disabled')
+        self.status_var.set(f"Recording {duration} seconds...")
+        self.record_5_button.config(state='disabled')
+        self.record_3_button.config(state='disabled')
         self.stop_button.config(state='normal')
         
         # Start recording in a separate thread
         self.current_recording_thread = threading.Thread(
             target=self._record_audio,
-            args=(sound_type,)
+            args=(sound_type, duration)
         )
         self.current_recording_thread.start()
         
-    def _record_audio(self, sound_type: str):
+    def _record_audio(self, sound_type: str, duration: int = 5):
         """Record audio in a separate thread."""
         try:
-            success = self.simple_recorder.record_5_seconds(
-                f"data/recordings/{sound_type}_{self._get_timestamp()}.wav"
-            )
+            if duration == 3:
+                success = self.simple_recorder.record_3_seconds(
+                    f"data/recordings/{sound_type}_{self._get_timestamp()}.wav"
+                )
+            else:
+                success = self.simple_recorder.record_5_seconds(
+                    f"data/recordings/{sound_type}_{self._get_timestamp()}.wav"
+                )
             
             # Update GUI in main thread
             self.root.after(0, self._recording_finished, success)
@@ -213,21 +231,24 @@ class SoundDetectionGUI:
     def _recording_finished(self, success: bool):
         """Handle recording completion."""
         self.status_var.set("Recording completed" if success else "Recording failed")
-        self.record_button.config(state='normal')
+        self.record_5_button.config(state='normal')
+        self.record_3_button.config(state='normal')
         self.stop_button.config(state='disabled')
         self.refresh_recordings()
         
     def _recording_error(self, error: str):
         """Handle recording error."""
         self.status_var.set(f"Recording error: {error}")
-        self.record_button.config(state='normal')
+        self.record_5_button.config(state='normal')
+        self.record_3_button.config(state='normal')
         self.stop_button.config(state='disabled')
         
     def stop_recording(self):
         """Stop current recording."""
         self.simple_recorder.stop_recording()
         self.status_var.set("Recording stopped")
-        self.record_button.config(state='normal')
+        self.record_5_button.config(state='normal')
+        self.record_3_button.config(state='normal')
         self.stop_button.config(state='disabled')
         
     def play_selected(self):
