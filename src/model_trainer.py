@@ -39,6 +39,14 @@ class SoundModelTrainer:
         
         features = []
         labels = []
+        feature_stats = {
+            'total_files': 0,
+            'processed_files': 0,
+            'failed_files': 0,
+            'feature_shapes': [],
+            'original_lengths': [],
+            'padded_lengths': []
+        }
         
         # Get all audio files
         audio_files = list_audio_files(self.recordings_dir)
@@ -47,10 +55,13 @@ class SoundModelTrainer:
             raise ValueError("No audio files found for training")
             
         print(f"Found {len(audio_files)} audio files")
+        feature_stats['total_files'] = len(audio_files)
         
         # Process each audio file
-        for audio_file in audio_files:
+        for i, audio_file in enumerate(audio_files):
             try:
+                print(f"Processing file {i+1}/{len(audio_files)}: {os.path.basename(audio_file)}")
+                
                 # Extract features
                 mfcc_features = extract_features(audio_file, n_mfcc=self.feature_dim)
                 
@@ -59,8 +70,16 @@ class SoundModelTrainer:
                     filename = os.path.basename(audio_file)
                     sound_type = filename.split('_')[0]
                     
+                    # Log original feature shape
+                    original_shape = mfcc_features.shape
+                    feature_stats['feature_shapes'].append(original_shape)
+                    print(f"  Original MFCC shape: {original_shape}")
+                    
                     # Flatten MFCC features
                     flattened_features = mfcc_features.flatten()
+                    original_length = len(flattened_features)
+                    feature_stats['original_lengths'].append(original_length)
+                    print(f"  Flattened length: {original_length}")
                     
                     # Pad or truncate to fixed length
                     target_length = self.feature_dim * 100  # Adjust based on your needs
@@ -68,17 +87,35 @@ class SoundModelTrainer:
                         # Pad with zeros
                         padded_features = np.pad(flattened_features, 
                                                (0, target_length - len(flattened_features)))
+                        print(f"  Padded to length: {target_length} (added {target_length - original_length} zeros)")
                     else:
                         # Truncate
                         padded_features = flattened_features[:target_length]
+                        print(f"  Truncated to length: {target_length} (removed {original_length - target_length} values)")
+                    
+                    feature_stats['padded_lengths'].append(len(padded_features))
+                    
+                    # Log feature statistics
+                    print(f"  Feature statistics:")
+                    print(f"    - Min value: {np.min(padded_features):.4f}")
+                    print(f"    - Max value: {np.max(padded_features):.4f}")
+                    print(f"    - Mean value: {np.mean(padded_features):.4f}")
+                    print(f"    - Std deviation: {np.std(padded_features):.4f}")
+                    print(f"    - Non-zero elements: {np.count_nonzero(padded_features)}/{len(padded_features)}")
                     
                     features.append(padded_features)
                     labels.append(sound_type)
+                    feature_stats['processed_files'] += 1
                     
-                    print(f"Processed: {filename} -> {sound_type}")
+                    print(f"  ✓ Processed: {filename} -> {sound_type}")
+                    
+                else:
+                    print(f"  ✗ Failed to extract features from {filename}")
+                    feature_stats['failed_files'] += 1
                     
             except Exception as e:
-                print(f"Error processing {audio_file}: {e}")
+                print(f"  ✗ Error processing {os.path.basename(audio_file)}: {e}")
+                feature_stats['failed_files'] += 1
                 continue
                 
         if not features:
@@ -90,6 +127,30 @@ class SoundModelTrainer:
         
         # Get unique classes
         self.classes = sorted(list(set(y)))
+        
+        # Log overall feature statistics
+        print(f"\nFeature Extraction Summary:")
+        print(f"  • Total files: {feature_stats['total_files']}")
+        print(f"  • Successfully processed: {feature_stats['processed_files']}")
+        print(f"  • Failed to process: {feature_stats['failed_files']}")
+        print(f"  • Final feature matrix shape: {X.shape}")
+        print(f"  • Feature vector length: {X.shape[1]}")
+        print(f"  • Classes: {self.classes}")
+        
+        if feature_stats['feature_shapes']:
+            unique_shapes = set(feature_stats['feature_shapes'])
+            print(f"  • Original MFCC shapes found: {list(unique_shapes)}")
+        
+        if feature_stats['original_lengths']:
+            print(f"  • Original lengths - Min: {min(feature_stats['original_lengths'])}, Max: {max(feature_stats['original_lengths'])}")
+        
+        # Log overall feature statistics
+        print(f"  • Overall feature statistics:")
+        print(f"    - Min value: {np.min(X):.4f}")
+        print(f"    - Max value: {np.max(X):.4f}")
+        print(f"    - Mean value: {np.mean(X):.4f}")
+        print(f"    - Std deviation: {np.std(X):.4f}")
+        print(f"    - Sparsity: {1 - (np.count_nonzero(X) / X.size):.2%}")
         
         print(f"Prepared {len(X)} samples with {len(self.classes)} classes: {self.classes}")
         
@@ -136,6 +197,19 @@ class SoundModelTrainer:
         # Generate report
         report = classification_report(y_test, y_pred, output_dict=True)
         
+        # Calculate per-class accuracy
+        class_accuracy = {}
+        for i, class_name in enumerate(self.classes):
+            class_mask = y_test == class_name
+            if np.any(class_mask):
+                class_acc = accuracy_score(y_test[class_mask], y_pred[class_mask])
+                class_accuracy[class_name] = class_acc
+        
+        # Get feature importance if available
+        feature_importance = None
+        if hasattr(self.model, 'feature_importances_'):
+            feature_importance = self.model.feature_importances_.tolist()
+        
         results = {
             'model_type': model_type,
             'accuracy': accuracy,
@@ -143,10 +217,15 @@ class SoundModelTrainer:
             'n_samples': len(X),
             'n_train': len(X_train),
             'n_test': len(X_test),
-            'classification_report': report
+            'classification_report': report,
+            'class_accuracy': class_accuracy,
+            'feature_importance': feature_importance,
+            'feature_dim': self.feature_dim,
+            'model_params': self.model.get_params() if self.model else None
         }
         
         print(f"Training completed! Accuracy: {accuracy:.3f}")
+        print(f"Per-class accuracy: {class_accuracy}")
         
         return results
         
@@ -243,7 +322,7 @@ class SoundModelTrainer:
         return prediction, confidence
         
     def get_model_info(self) -> Dict:
-        """Get information about the current model."""
+        """Get comprehensive information about the current model."""
         if self.model is None:
             return {'status': 'No model loaded'}
             
@@ -252,8 +331,25 @@ class SoundModelTrainer:
             'model_type': type(self.model).__name__,
             'classes': self.classes,
             'feature_dim': self.feature_dim,
-            'n_classes': len(self.classes)
+            'n_classes': len(self.classes),
+            'feature_vector_length': self.feature_dim * 100
         }
+        
+        # Add model parameters if available
+        if hasattr(self.model, 'get_params'):
+            info['model_params'] = self.model.get_params()
+        
+        # Add feature importance if available
+        if hasattr(self.model, 'feature_importances_'):
+            info['feature_importance'] = self.model.feature_importances_.tolist()
+            info['top_features'] = np.argsort(self.model.feature_importances_)[-10:].tolist()
+        
+        # Add training info if available
+        if hasattr(self.model, 'n_estimators'):
+            info['n_estimators'] = self.model.n_estimators
+        
+        if hasattr(self.model, 'n_features_in_'):
+            info['n_features_in'] = self.model.n_features_in_
         
         return info
 
@@ -263,6 +359,7 @@ class SimpleTrainer:
     
     def __init__(self):
         self.trainer = SoundModelTrainer()
+        self.last_training_results = None
         
     def train_and_save(self, model_name: str = "sound_model.pkl") -> bool:
         """
@@ -278,20 +375,24 @@ class SimpleTrainer:
             print("Starting model training...")
             
             # Train model
-            results = self.trainer.train_model()
+            self.last_training_results = self.trainer.train_model()
             
             # Save model
             self.trainer.save_model(model_name)
             
             print(f"Training completed successfully!")
-            print(f"Accuracy: {results['accuracy']:.3f}")
-            print(f"Classes: {results['classes']}")
+            print(f"Accuracy: {self.last_training_results['accuracy']:.3f}")
+            print(f"Classes: {self.last_training_results['classes']}")
             
             return True
             
         except Exception as e:
             print(f"Training failed: {e}")
             return False
+    
+    def get_training_results(self) -> Dict:
+        """Get the results from the last training session."""
+        return self.last_training_results or {}
             
     def load_and_test(self, model_path: str, test_file: str) -> bool:
         """

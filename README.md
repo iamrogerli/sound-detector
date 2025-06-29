@@ -8,8 +8,12 @@ A Python application for recording audio, training sound recognition models, and
    - 5-second automatic recordings
    - 3-second automatic recordings  
    - Press-and-hold manual recordings (start when pressed, stop when released)
-2. **Model Training**: Train machine learning models to recognize specific sounds
-3. **Real-time Detection**: Continuously monitor microphone input for trained sounds
+2. **Model Training**: Train machine learning models to recognize specific sounds with **detailed training logging** showing progress, accuracy metrics, and model statistics
+3. **Real-time Detection**: Continuously monitor microphone input for trained sounds with:
+   - **Live confidence display** with progress bar
+   - **Color-coded confidence levels** (HIGH/MEDIUM/LOW)
+   - **Real-time waveform visualization** showing audio input
+   - **Enhanced detection history** with timestamps
 
 ## Installation
 
@@ -92,13 +96,29 @@ The application has three main tabs:
 
 #### 2. Training Tab
 - Train a model using your recorded sounds
+- **Enhanced Training Logging**: See detailed training progress and results including:
+  - Data analysis and sound type distribution
+  - Feature extraction progress
+  - Model parameters and configuration
+  - Training accuracy and performance metrics
+  - Per-class accuracy breakdown
+  - Model evaluation results
 - Load existing trained models
 - Test model performance
 
 #### 3. Detection Tab
-- Start real-time sound detection
-- Monitor for specific sounds
-- View detection results
+- **Real-time Confidence Display**: See live confidence levels with progress bar
+- **Color-coded Results**: HIGH (green), MEDIUM (yellow), LOW (red) confidence levels
+- **Live Waveform**: Watch real-time audio input visualization from your microphone
+- **Enhanced History**: Detailed detection log with timestamps
+- **Confidence Threshold Control**: Adjust detection sensitivity (50% - 95%)
+- **Microphone Test**: Verify microphone access before starting detection
+- Start/stop real-time sound detection
+- Test detection on existing recordings
+
+**💡 Tip**: If you're getting false detections from background noise, increase the confidence threshold to 80% or higher. The system now filters out silence and low-volume audio automatically.
+
+**🎤 Microphone Visualization**: The waveform now shows real microphone input! Speak into your microphone and watch the waveform respond to your voice.
 
 ## Project Structure
 

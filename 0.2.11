@@ -1,5 +1,1 @@
-Collecting pyaudio
-  Downloading PyAudio-0.2.14-cp312-cp312-win_amd64.whl.metadata (2.7 kB)
-Downloading PyAudio-0.2.14-cp312-cp312-win_amd64.whl (164 kB)
-Installing collected packages: pyaudio
-Successfully installed pyaudio-0.2.14
+Requirement already satisfied: pyaudio in c:\users\roger\miniconda3\lib\site-packages (0.2.14)

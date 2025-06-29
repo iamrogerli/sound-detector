@@ -82,6 +82,11 @@ class RealTimeDetector:
                 audio_data = self._record_audio_segment()
                 
                 if audio_data is not None:
+                    # Check audio volume to filter out silence
+                    if not self._is_audio_significant(audio_data):
+                        time.sleep(self.detection_interval)
+                        continue
+                    
                     # Save temporary file for analysis
                     temp_file = "temp_detection.wav"
                     self._save_audio_segment(audio_data, temp_file)
@@ -186,6 +191,32 @@ class RealTimeDetector:
         """Clean up resources."""
         self.stop_detection()
         self.audio.terminate()
+
+    def _is_audio_significant(self, audio_data: bytes) -> bool:
+        """
+        Check if audio has significant volume (not silence).
+        
+        Args:
+            audio_data: Raw audio data as bytes
+            
+        Returns:
+            True if audio has significant volume
+        """
+        try:
+            # Convert bytes to numpy array
+            audio_array = np.frombuffer(audio_data, dtype=np.float32)
+            
+            # Calculate RMS (Root Mean Square) volume
+            rms = np.sqrt(np.mean(audio_array**2))
+            
+            # Threshold for significant audio (adjust as needed)
+            volume_threshold = 0.01  # 1% of max amplitude
+            
+            return rms > volume_threshold
+            
+        except Exception as e:
+            print(f"Error checking audio volume: {e}")
+            return True  # Default to True if we can't check
 
 
 class SimpleDetector:
